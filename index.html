@@ -253,30 +253,19 @@ function setSyncState(state, msg){
   lbl.textContent = msg;
 }
 
+const WORKER_URL = 'https://abastecimento-api.rodrigueshilton13.workers.dev';
+
 // ===================== JSONBIN =====================
 async function loadFromCloud(){
   try{
-    // Tenta direto primeiro (funciona em alguns browsers), senão usa proxy
-    let j = null;
-    try{
-      const r = await fetch(BIN_URL+'/latest', {
-        headers:{'X-Master-Key':API_KEY,'X-Access-Key':API_KEY}
-      });
-      if(r.ok) j = await r.json();
-    }catch(e1){}
-
-    if(!j){
-      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(BIN_URL+'/latest?master-key='+API_KEY)}`;
-      const r2 = await fetch(proxy);
-      if(!r2.ok) throw new Error('HTTP '+r2.status);
-      const outer = await r2.json();
-      j = JSON.parse(outer.contents);
-    }
-
+    const r = await fetch(WORKER_URL, {method:'GET'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
     const remote = j.record || j;
     if(remote && remote.config) applyConfig(remote.config);
-    if(remote && remote.dados){
-      dados = remote.dados;
+    if(remote && remote.dados) dados = remote.dados;
+    // Se a tabela já existe no DOM, atualiza os valores
+    if(document.getElementById('dayBody') && document.getElementById('dayBody').children.length > 0){
       refreshTableValues();
     }
     setSyncState('ok', 'Sincronizado · '+new Date().toLocaleTimeString('pt-PT'));
@@ -288,25 +277,15 @@ async function loadFromCloud(){
 async function saveToCloud(){
   setSyncState('loading','A guardar...');
   try{
-    const payload = JSON.stringify({config, dados});
-    // PUT direto — JSONBin suporta CORS para escritas autenticadas
-    const r = await fetch(BIN_URL, {
+    const r = await fetch(WORKER_URL, {
       method:'PUT',
-      headers:HEADERS,
-      body:payload
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({config, dados})
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
     setSyncState('ok','Guardado · '+new Date().toLocaleTimeString('pt-PT'));
   }catch(e){
-    // fallback: tenta via proxy de escrita
-    try{
-      const proxyPut = `https://api.allorigins.win/raw?url=${encodeURIComponent(BIN_URL)}`;
-      const r2 = await fetch(proxyPut, {method:'PUT', headers:HEADERS, body:JSON.stringify({config,dados})});
-      if(!r2.ok) throw new Error('PUT proxy HTTP '+r2.status);
-      setSyncState('ok','Guardado · '+new Date().toLocaleTimeString('pt-PT'));
-    }catch(e2){
-      setSyncState('err','Erro ao guardar: '+e2.message);
-    }
+    setSyncState('err','Erro ao guardar: '+e.message);
   }
 }
 
@@ -792,7 +771,12 @@ function esc(s){const d=document.createElement('div');d.textContent=s||'';return
 window.addEventListener('DOMContentLoaded',async()=>{
   setSyncState('loading','A ligar à nuvem...');
   await loadFromCloud();
-  if(range.length) buildTable();
+  // Se vieram dados da nuvem com período definido, constrói a tabela automaticamente
+  if(range.length){
+    buildTable();
+    // Preencher tabela com dados vindos da nuvem
+    refreshTableValues();
+  }
   startPolling();
 });
 </script>
