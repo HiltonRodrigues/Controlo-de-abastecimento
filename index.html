@@ -256,19 +256,32 @@ function setSyncState(state, msg){
 // ===================== JSONBIN =====================
 async function loadFromCloud(){
   try{
-    const url = `https://corsproxy.io/?url=${encodeURIComponent(BIN_URL+'/latest')}`;
-    const r = await fetch(url, {headers:{'X-Master-Key':API_KEY}});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j = await r.json();
-    const remote = j.record;
-    if(remote.config) applyConfig(remote.config);
-    if(remote.dados){
+    // Tenta direto primeiro (funciona em alguns browsers), senão usa proxy
+    let j = null;
+    try{
+      const r = await fetch(BIN_URL+'/latest', {
+        headers:{'X-Master-Key':API_KEY,'X-Access-Key':API_KEY}
+      });
+      if(r.ok) j = await r.json();
+    }catch(e1){}
+
+    if(!j){
+      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(BIN_URL+'/latest?master-key='+API_KEY)}`;
+      const r2 = await fetch(proxy);
+      if(!r2.ok) throw new Error('HTTP '+r2.status);
+      const outer = await r2.json();
+      j = JSON.parse(outer.contents);
+    }
+
+    const remote = j.record || j;
+    if(remote && remote.config) applyConfig(remote.config);
+    if(remote && remote.dados){
       dados = remote.dados;
       refreshTableValues();
     }
     setSyncState('ok', 'Sincronizado · '+new Date().toLocaleTimeString('pt-PT'));
   }catch(e){
-    setSyncState('err', 'Erro de ligação');
+    setSyncState('err', 'Erro: '+e.message);
   }
 }
 
@@ -276,12 +289,24 @@ async function saveToCloud(){
   setSyncState('loading','A guardar...');
   try{
     const payload = JSON.stringify({config, dados});
-    const putUrl = `https://corsproxy.io/?url=${encodeURIComponent(BIN_URL)}`;
-    const r = await fetch(putUrl, {method:'PUT', headers:HEADERS, body:payload});
+    // PUT direto — JSONBin suporta CORS para escritas autenticadas
+    const r = await fetch(BIN_URL, {
+      method:'PUT',
+      headers:HEADERS,
+      body:payload
+    });
     if(!r.ok) throw new Error('HTTP '+r.status);
     setSyncState('ok','Guardado · '+new Date().toLocaleTimeString('pt-PT'));
   }catch(e){
-    setSyncState('err','Erro ao guardar');
+    // fallback: tenta via proxy de escrita
+    try{
+      const proxyPut = `https://api.allorigins.win/raw?url=${encodeURIComponent(BIN_URL)}`;
+      const r2 = await fetch(proxyPut, {method:'PUT', headers:HEADERS, body:JSON.stringify({config,dados})});
+      if(!r2.ok) throw new Error('PUT proxy HTTP '+r2.status);
+      setSyncState('ok','Guardado · '+new Date().toLocaleTimeString('pt-PT'));
+    }catch(e2){
+      setSyncState('err','Erro ao guardar: '+e2.message);
+    }
   }
 }
 
