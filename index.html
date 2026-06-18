@@ -256,7 +256,8 @@ function setSyncState(state, msg){
 // ===================== JSONBIN =====================
 async function loadFromCloud(){
   try{
-    const r = await fetch(BIN_URL+'/latest', {headers:{'X-Master-Key':API_KEY}});
+    const url = `https://corsproxy.io/?url=${encodeURIComponent(BIN_URL+'/latest')}`;
+    const r = await fetch(url, {headers:{'X-Master-Key':API_KEY}});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j = await r.json();
     const remote = j.record;
@@ -275,7 +276,8 @@ async function saveToCloud(){
   setSyncState('loading','A guardar...');
   try{
     const payload = JSON.stringify({config, dados});
-    const r = await fetch(BIN_URL, {method:'PUT', headers:HEADERS, body:payload});
+    const putUrl = `https://corsproxy.io/?url=${encodeURIComponent(BIN_URL)}`;
+    const r = await fetch(putUrl, {method:'PUT', headers:HEADERS, body:payload});
     if(!r.ok) throw new Error('HTTP '+r.status);
     setSyncState('ok','Guardado · '+new Date().toLocaleTimeString('pt-PT'));
   }catch(e){
