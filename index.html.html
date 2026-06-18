@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abastecimento — Água e Gasóleo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --ink:#1c2b3a;--ink-soft:#4b5c6b;--paper:#f7f5f0;--panel:#fff;
+  --line:#dfdbd0;--grid:#e7e3d8;
+  --azul:#2f5d8a;--azul-deep:#1d3c5c;--azul-light:#eef3f7;--azul-border:#cdd9e3;
+  --laranja:#c97b3d;--laranja-deep:#9c5a23;--laranja-light:#fbf1ea;--laranja-border:#e9d3bc;
+  --bad:#b3432f;--good:#3c7a5e;
+  --mono:'IBM Plex Mono','Courier New',monospace;
+  --serif:'Georgia',serif;
+  --sans:'Inter','Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;}
+.app{max-width:1100px;margin:0 auto;padding:24px 18px 80px;}
+
+/* MASTHEAD */
+.masthead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:22px;gap:12px;flex-wrap:wrap;}
+.masthead h1{font-family:var(--serif);font-size:26px;font-weight:700;letter-spacing:-.01em;}
+.masthead .sub{font-family:var(--mono);font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+
+/* SYNC */
+.sync-bar{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
+.sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.sync-dot.ok{background:#3c7a5e;}
+.sync-dot.err{background:#c97b3d;}
+.sync-dot.loading{background:#888;animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* TABS */
+.tabs{display:flex;border:1.5px solid var(--ink);border-radius:3px;overflow:hidden;}
+.tabs button{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;background:var(--panel);color:var(--ink);border:none;padding:8px 15px;cursor:pointer;border-right:1.5px solid var(--ink);}
+.tabs button:last-child{border-right:none;}
+.tabs button.active{background:var(--ink);color:var(--paper);}
+
+/* PANELS */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:20px;margin-bottom:18px;}
+.panel-title{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.panel-title h2{font-family:var(--serif);font-size:17px;font-weight:700;}
+.panel-title .tag{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.07em;background:var(--ink);color:var(--paper);padding:2px 6px;border-radius:2px;}
+.hint{font-size:12px;color:var(--ink-soft);line-height:1.5;margin-bottom:14px;}
+
+/* FORM */
+.field-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;}
+@media(max-width:720px){.field-grid{grid-template-columns:repeat(2,1fr);}}
+.field label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:4px;}
+.field input[type=text],.field input[type=number],.field input[type=date]{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:3px;font-size:13px;font-family:var(--sans);background:#fdfcfa;color:var(--ink);}
+.field input:focus{outline:2px solid var(--azul);outline-offset:1px;}
+.span2{grid-column:span 2;}
+
+/* UPLOAD */
+.upload-box{border:2px dashed var(--line);border-radius:5px;padding:18px;text-align:center;background:#fdfcfa;margin-bottom:8px;}
+.upload-box p{font-size:12px;color:var(--ink-soft);margin-bottom:10px;}
+.upload-status{font-family:var(--mono);font-size:11px;margin-top:8px;color:var(--ink-soft);}
+.upload-status.ok{color:var(--good);}
+.upload-status.err{color:var(--bad);}
+.sheet-row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+.sheet-row label{font-family:var(--mono);font-size:10px;color:var(--ink-soft);}
+.sheet-row select{font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:3px;background:#fff;}
+
+/* BUTTONS */
+.btn-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+button.btn-primary{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:10px 18px;border-radius:3px;cursor:pointer;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);}
+button.btn-primary:hover{background:var(--azul-deep);border-color:var(--azul-deep);}
+button.btn-ghost{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:10px 18px;border-radius:3px;cursor:pointer;border:1.5px solid var(--line);background:transparent;color:var(--ink-soft);}
+button.btn-ghost:hover{border-color:var(--ink);color:var(--ink);}
+button.btn-danger{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:10px 18px;border-radius:3px;cursor:pointer;border:1.5px solid var(--bad);background:var(--bad);color:#fff;}
+
+/* DAY TABLE */
+.table-wrap{max-height:500px;overflow-y:auto;border:1px solid var(--line);border-radius:3px;}
+.day-table{width:100%;border-collapse:collapse;font-size:12px;}
+.day-table th{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);text-align:left;padding:6px 7px;border-bottom:1.5px solid var(--ink);position:sticky;top:0;background:var(--panel);white-space:nowrap;}
+.day-table td{padding:4px 7px;border-bottom:1px solid var(--grid);vertical-align:middle;}
+.day-table tr.off td{background:#f5f4f0;color:#aaa;}
+.day-table input[type=number]{width:60px;padding:4px 5px;font-size:12px;border:1px solid var(--line);border-radius:3px;background:#fdfcfa;color:var(--ink);text-align:center;}
+.day-table input[type=text]{width:90px;padding:4px 5px;font-size:12px;border:1px solid var(--line);border-radius:3px;background:#fdfcfa;color:var(--ink);}
+.day-table input:disabled{background:transparent;border-color:transparent;color:#bbb;}
+.mono{font-family:var(--mono);font-weight:600;font-size:11px;}
+.wd{color:var(--ink-soft);font-size:10px;}
+
+/* CALLOUT */
+.callout{border-radius:4px;padding:14px 16px;font-size:13.5px;line-height:1.6;margin-bottom:20px;}
+.callout.info{background:var(--azul-light);border:1px solid var(--azul-border);}
+.callout.impact{background:var(--laranja-light);border:1px solid var(--laranja-border);}
+.callout b.w{color:var(--azul-deep);}
+.callout b.f{color:var(--laranja-deep);}
+
+/* STAT GRID */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;}
+@media(max-width:700px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-card{border:1px solid var(--line);border-radius:4px;padding:14px 10px;text-align:center;}
+.stat-card .num{font-family:var(--serif);font-size:28px;font-weight:700;line-height:1;}
+.stat-card .lbl{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-top:5px;line-height:1.4;}
+.stat-card.water .num{color:var(--azul-deep);}
+.stat-card.fuel .num{color:var(--laranja-deep);}
+.stat-card.impact .num{color:var(--bad);}
+
+/* REPORT */
+.report-doc{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:28px 32px;}
+.report-head{border-left:6px solid var(--azul-deep);padding-left:14px;margin-bottom:20px;}
+.report-head h1{font-family:var(--serif);font-size:22px;font-weight:700;margin-bottom:4px;}
+.report-head .meta{font-family:var(--mono);font-size:11px;color:var(--ink-soft);line-height:1.6;}
+.section-title{font-family:var(--serif);font-size:17px;font-weight:700;border-bottom:2px solid var(--ink);padding-bottom:7px;margin:0 0 4px;}
+.section-sub{font-size:12px;color:var(--ink-soft);margin:5px 0 12px;line-height:1.5;}
+.chart-block{margin-bottom:28px;}
+
+/* SUMMARY TABLE */
+table.summary{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px;}
+table.summary th,table.summary td{padding:8px 11px;border:1px solid var(--line);text-align:center;}
+table.summary th{background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.04em;}
+table.summary td:first-child,table.summary th:first-child{text-align:left;font-weight:600;}
+table.summary tr:last-child td{font-weight:700;background:#f5f3ec;}
+.pct-bad{color:var(--bad);font-weight:700;}
+.pct-ok{color:var(--good);font-weight:700;}
+
+ul.points{font-size:13.5px;line-height:1.65;list-style:none;padding:0;}
+ul.points li{margin-bottom:10px;padding-left:16px;border-left:3px solid var(--line);}
+ul.points li b{color:var(--ink);}
+.footer-note{font-family:var(--mono);font-size:10px;color:#9a9690;text-align:right;margin-top:8px;}
+.report-actions{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+
+@media print{
+  .masthead .tabs,.report-actions,.panel{display:none !important;}
+  #report{display:block !important;}
+  body{background:#fff;}
+  .report-doc{border:none;padding:0;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="masthead">
+  <div>
+    <h1>Relatório de Abastecimento</h1>
+    <div class="sub">Água &amp; Gasóleo · Dados partilhados em nuvem</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div class="sync-bar">
+      <span class="sync-dot loading" id="syncDot"></span>
+      <span id="syncLabel">A ligar...</span>
+    </div>
+    <div class="tabs">
+      <button class="active" id="tab-dados" onclick="showTab('dados')">1 · Dados</button>
+      <button id="tab-relatorio" onclick="showTab('relatorio')">2 · Relatório</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DADOS ===== -->
+<div id="view-dados">
+
+  <div class="panel">
+    <div class="panel-title"><h2>Carregar Excel</h2><span class="tag">opcional</span></div>
+    <p class="hint">Importe um ficheiro .xlsx com os dados diários. O sistema detecta automaticamente as colunas de Data, Água e Gasóleo.</p>
+    <div class="upload-box" id="uploadBox"
+      ondragover="event.preventDefault();this.style.borderColor='var(--azul)'"
+      ondragleave="this.style.borderColor=''"
+      ondrop="handleDrop(event)">
+      <p>Arraste o ficheiro .xlsx aqui, ou</p>
+      <button class="btn-ghost" onclick="document.getElementById('fileInput').click()">Escolher ficheiro</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this.files[0])">
+      <div id="sheetRow" class="sheet-row" style="display:none;">
+        <label>Folha:</label>
+        <select id="sheetSelect"></select>
+        <button class="btn-primary" style="padding:6px 12px;" onclick="importSheet()">Importar</button>
+      </div>
+      <div class="upload-status" id="uploadStatus"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><h2>Configuração do período</h2><span class="tag">config</span></div>
+    <p class="hint">Defina o intervalo e as metas. Todos os dias, incluindo domingos, contam para as metas (desmarque individualmente se não houver operação).</p>
+    <div class="field-grid">
+      <div class="field"><label>Data início</label><input type="date" id="cfgIni" value="2026-05-01" oninput="saveCfg()"></div>
+      <div class="field"><label>Data fim</label><input type="date" id="cfgFim" value="2026-05-31" oninput="saveCfg()"></div>
+      <div class="field"><label>Meta água (viat./dia)</label><input type="number" id="cfgMetaA" value="10" min="0" oninput="saveCfg()"></div>
+      <div class="field"><label>Meta gasóleo (viat./dia)</label><input type="number" id="cfgMetaG" value="2" min="0" oninput="saveCfg()"></div>
+      <div class="field span2"><label>Título do relatório</label><input type="text" id="cfgTitulo" value="Abastecimento de Viaturas — Água e Gasóleo" oninput="saveCfg()"></div>
+      <div class="field span2"><label>Subtítulo (opcional)</label><input type="text" id="cfgSub" placeholder="Ex.: Base X · Pelotão Y" oninput="saveCfg()"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="buildTable()">Gerar tabela de dias</button>
+    </div>
+  </div>
+
+  <div class="panel" id="tablePanel" style="display:none;">
+    <div class="panel-title"><h2>Registo diário</h2><span class="tag">dados partilhados</span></div>
+    <p class="hint">Os dados são guardados automaticamente na nuvem e partilhados com toda a equipa em tempo real (sincronização a cada 5 segundos).</p>
+    <div class="table-wrap">
+      <table class="day-table">
+        <thead>
+          <tr>
+            <th>Data</th><th>Dia</th><th>Operou</th>
+            <th>Água (viat.)</th><th>Gasóleo (viat.)</th>
+            <th>Lojas fech. (água)</th><th>Lojas fech. (gas.)</th>
+            <th>Observações</th>
+          </tr>
+        </thead>
+        <tbody id="dayBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="showTab('relatorio')">Ver relatório →</button>
+      <button class="btn-danger" onclick="clearAll()">Limpar todos os valores</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== RELATÓRIO ===== -->
+<div id="view-relatorio" style="display:none;">
+  <div class="report-actions">
+    <button class="btn-primary" onclick="window.print()">Imprimir / Guardar PDF</button>
+    <button class="btn-ghost" onclick="showTab('dados')">← Voltar aos dados</button>
+  </div>
+  <div class="report-doc" id="reportDoc">
+    <p style="color:var(--ink-soft);font-size:13px;">Clique em "Ver relatório →" na aba de dados para gerar o relatório.</p>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+// ===================== CONFIG JSONBin =====================
+const BIN_ID = '6a344776da38895dfed960d8';
+const API_KEY = '$2a$10$s82CkS0u4tzdpXalBv1/KeWGu9rUiWSKI4pFpjgCeRdqmRf74EsNW';
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const HEADERS = {'Content-Type':'application/json','X-Master-Key':API_KEY,'X-Bin-Versioning':'false'};
+const POLL_MS = 5000;
+
+// ===================== ESTADO LOCAL =====================
+let dados = {};
+let config = {ini:'2026-05-01',fim:'2026-05-31',metaA:10,metaG:2,titulo:'Abastecimento de Viaturas — Água e Gasóleo',sub:''};
+let range = [];
+let pollTimer = null;
+let lastEtag = null;
+let loadedWb = null;
+let saveTimer = null;
+
+// ===================== SYNC UI =====================
+function setSyncState(state, msg){
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  dot.className = 'sync-dot ' + state;
+  lbl.textContent = msg;
+}
+
+// ===================== JSONBIN =====================
+async function loadFromCloud(){
+  try{
+    const r = await fetch(BIN_URL+'/latest', {headers:{'X-Master-Key':API_KEY}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    const remote = j.record;
+    if(remote.config) applyConfig(remote.config);
+    if(remote.dados){
+      dados = remote.dados;
+      refreshTableValues();
+    }
+    setSyncState('ok', 'Sincronizado · '+new Date().toLocaleTimeString('pt-PT'));
+  }catch(e){
+    setSyncState('err', 'Erro de ligação');
+  }
+}
+
+async function saveToCloud(){
+  setSyncState('loading','A guardar...');
+  try{
+    const payload = JSON.stringify({config, dados});
+    const r = await fetch(BIN_URL, {method:'PUT', headers:HEADERS, body:payload});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    setSyncState('ok','Guardado · '+new Date().toLocaleTimeString('pt-PT'));
+  }catch(e){
+    setSyncState('err','Erro ao guardar');
+  }
+}
+
+function debounceSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToCloud, 800);
+}
+
+function startPolling(){
+  clearInterval(pollTimer);
+  pollTimer = setInterval(loadFromCloud, POLL_MS);
+}
+
+// ===================== CONFIG =====================
+function applyConfig(c){
+  config = {...config,...c};
+  document.getElementById('cfgIni').value = config.ini||'';
+  document.getElementById('cfgFim').value = config.fim||'';
+  document.getElementById('cfgMetaA').value = config.metaA||10;
+  document.getElementById('cfgMetaG').value = config.metaG||2;
+  document.getElementById('cfgTitulo').value = config.titulo||'';
+  document.getElementById('cfgSub').value = config.sub||'';
+  if(config.ini && config.fim) buildRange();
+}
+
+function readConfig(){
+  config.ini = document.getElementById('cfgIni').value;
+  config.fim = document.getElementById('cfgFim').value;
+  config.metaA = parseFloat(document.getElementById('cfgMetaA').value)||0;
+  config.metaG = parseFloat(document.getElementById('cfgMetaG').value)||0;
+  config.titulo = document.getElementById('cfgTitulo').value;
+  config.sub = document.getElementById('cfgSub').value;
+}
+
+function saveCfg(){
+  readConfig();
+  debounceSave();
+}
+
+// ===================== RANGE & TABLE =====================
+const diasPT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+function parseDateLocal(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function fmtDate(d){return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');}
+function fmtFull(d){return fmtDate(d)+'/'+d.getFullYear();}
+function fmtISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+function buildRange(){
+  const ini = parseDateLocal(config.ini||document.getElementById('cfgIni').value);
+  const fim = parseDateLocal(config.fim||document.getElementById('cfgFim').value);
+  if(fim < ini){ alert('Data fim deve ser posterior à data início.'); return; }
+  range = [];
+  let c = new Date(ini);
+  while(c <= fim){ range.push(new Date(c)); c.setDate(c.getDate()+1); }
+}
+
+function buildTable(){
+  readConfig();
+  buildRange();
+  if(!range.length) return;
+  const tbody = document.getElementById('dayBody');
+  tbody.innerHTML = '';
+  range.forEach(date=>{
+    const k = fmtISO(date);
+    const r = dados[k]||{};
+    const op = r.op !== false;
+    const tr = document.createElement('tr');
+    tr.id = 'row-'+k;
+    if(!op) tr.classList.add('off');
+    tr.innerHTML = `
+      <td class="mono">${fmtDate(date)}</td>
+      <td class="wd">${diasPT[date.getDay()]}</td>
+      <td style="text-align:center"><input type="checkbox" class="opChk" data-k="${k}" ${op?'checked':''}></td>
+      <td><input type="number" class="aguaInp" data-k="${k}" min="0" value="${r.agua||0}" ${!op?'disabled':''}></td>
+      <td><input type="number" class="gasInp" data-k="${k}" min="0" value="${r.gas||0}" ${!op?'disabled':''}></td>
+      <td><input type="number" class="laInp" data-k="${k}" min="0" value="${r.la||0}" ${!op?'disabled':''}></td>
+      <td><input type="number" class="lgInp" data-k="${k}" min="0" value="${r.lg||0}" ${!op?'disabled':''}></td>
+      <td><input type="text" class="obsInp" data-k="${k}" value="${r.obs||''}" placeholder="—" ${!op?'disabled':''}></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // eventos
+  tbody.querySelectorAll('.opChk').forEach(el=>{
+    el.addEventListener('change',function(){
+      const k=this.dataset.k;
+      const op=this.checked;
+      if(!dados[k]) dados[k]={};
+      dados[k].op=op;
+      const tr=document.getElementById('row-'+k);
+      tr.classList.toggle('off',!op);
+      tr.querySelectorAll('input[type=number],input[type=text]').forEach(i=>{
+        i.disabled=!op;
+        if(!op) i.value=i.type==='text'?'':0;
+      });
+      if(!op){dados[k]={op:false};}
+      debounceSave();
+    });
+  });
+
+  ['agua','gas','la','lg'].forEach(field=>{
+    tbody.querySelectorAll('.'+field+'Inp').forEach(el=>{
+      el.addEventListener('input',function(){
+        const k=this.dataset.k;
+        if(!dados[k]) dados[k]={op:true};
+        dados[k][field]=parseFloat(this.value)||0;
+        debounceSave();
+      });
+    });
+  });
+
+  tbody.querySelectorAll('.obsInp').forEach(el=>{
+    el.addEventListener('input',function(){
+      const k=this.dataset.k;
+      if(!dados[k]) dados[k]={op:true};
+      dados[k].obs=this.value;
+      debounceSave();
+    });
+  });
+
+  document.getElementById('tablePanel').style.display='block';
+}
+
+function refreshTableValues(){
+  if(!range.length) return;
+  range.forEach(date=>{
+    const k=fmtISO(date);
+    const r=dados[k]||{};
+    const tr=document.getElementById('row-'+k);
+    if(!tr) return;
+    const op=r.op!==false;
+    tr.classList.toggle('off',!op);
+    tr.querySelector('.opChk').checked=op;
+    ['agua','gas','la','lg'].forEach(f=>{
+      const inp=tr.querySelector('.'+f+'Inp');
+      if(inp&&document.activeElement!==inp){inp.value=r[f]||0;inp.disabled=!op;}
+    });
+    const obs=tr.querySelector('.obsInp');
+    if(obs&&document.activeElement!==obs){obs.value=r.obs||'';obs.disabled=!op;}
+  });
+}
+
+function clearAll(){
+  if(!confirm('Tem a certeza que quer limpar todos os valores? Esta ação não pode ser desfeita.')) return;
+  dados={};
+  range.forEach(d=>{const k=fmtISO(d);dados[k]={op:true,agua:0,gas:0,la:0,lg:0,obs:''};});
+  refreshTableValues();
+  saveToCloud();
+}
+
+// ===================== TABS =====================
+function showTab(t){
+  document.getElementById('view-dados').style.display = t==='dados'?'block':'none';
+  document.getElementById('view-relatorio').style.display = t==='relatorio'?'block':'none';
+  document.getElementById('tab-dados').classList.toggle('active',t==='dados');
+  document.getElementById('tab-relatorio').classList.toggle('active',t==='relatorio');
+  if(t==='relatorio') buildReport();
+}
+
+// ===================== EXCEL IMPORT =====================
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('uploadBox').style.borderColor='';
+  const f=e.dataTransfer.files[0];
+  if(f) handleFile(f);
+}
+
+function normalizeH(h){return String(h||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();}
+function findCol(hdrs,pats,excl=[]){
+  for(let i=0;i<hdrs.length;i++){
+    if(excl.includes(i)) continue;
+    for(const p of pats) if(p.test(hdrs[i])) return i;
+  }return -1;
+}
+function excelToDate(v){
+  if(v instanceof Date) return v;
+  if(typeof v==='number') return new Date(Math.floor(v-25569)*86400000);
+  if(typeof v==='string'){
+    const s=v.trim();
+    let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if(m){let[,d,mo,y]=m;if(y.length===2)y='20'+y;return new Date(+y,+mo-1,+d);}
+    m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m){const[,y,mo,d]=m;return new Date(+y,+mo-1,+d);}
+  }return null;
+}
+
+function setUploadStatus(msg,cls){
+  const el=document.getElementById('uploadStatus');
+  el.textContent=msg;el.className='upload-status'+(cls?' '+cls:'');
+}
+
+function handleFile(file){
+  if(!file) return;
+  setUploadStatus('A ler '+file.name+'…','');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      loadedWb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const names=loadedWb.SheetNames;
+      const sel=document.getElementById('sheetSelect');
+      sel.innerHTML='';
+      const pref=names.find(n=>/controlo.?di[aá]rio/i.test(n))||names.find(n=>/bd.?mensal/i.test(n))||names[0];
+      names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;if(n===pref)o.selected=true;sel.appendChild(o);});
+      document.getElementById('sheetRow').style.display='flex';
+      setUploadStatus('Ficheiro lido. Escolha a folha e clique em Importar.','ok');
+    }catch(err){setUploadStatus('Erro: '+err.message,'err');}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function importSheet(){
+  if(!loadedWb) return;
+  const sn=document.getElementById('sheetSelect').value;
+  const ws=loadedWb.Sheets[sn];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  let hIdx=0;
+  for(let i=0;i<Math.min(rows.length,5);i++){if(rows[i].filter(c=>c!==null&&c!=='').length>=2){hIdx=i;break;}}
+  const hdrs=rows[hIdx].map(normalizeH);
+  const iD=findCol(hdrs,[/^data$/,/\bdata\b/]);
+  const iAP=findCol(hdrs,[/agua.*previst/,/previst.*agua/]);
+  const iAR=findCol(hdrs,[/agua.*n[ºo]?\.?\s*viatura/,/agua.*viatura/,/^agua$/],[iAP]);
+  const iG=findCol(hdrs,[/gas[oó]leo/]);
+  const iO=findCol(hdrs,[/observa/]);
+  if(iD===-1||iAR===-1){setUploadStatus('Não foi possível identificar colunas de Data e Água. Verifique a folha.','err');return;}
+  const parsed=[];let metaA=null;
+  for(let i=hIdx+1;i<rows.length;i++){
+    const row=rows[i];
+    if(!row||row.every(c=>c===null||c==='')) continue;
+    const raw=row[iD];if(raw===null||raw===undefined) continue;
+    const date=excelToDate(raw);if(!date||isNaN(date)) continue;
+    const agua=Number(row[iAR])||0;
+    const gas=Number(iG>-1?row[iG]:0)||0;
+    const obs=iO>-1&&row[iO]!=null?String(row[iO]):'';
+    if(iAP>-1&&row[iAP]!=null&&metaA===null){const v=Number(row[iAP]);if(!isNaN(v)&&v>0)metaA=v;}
+    parsed.push({date,agua,gas,obs});
+  }
+  if(!parsed.length){setUploadStatus('Nenhuma linha válida encontrada.','err');return;}
+  parsed.sort((a,b)=>a.date-b.date);
+  const iniS=fmtISO(parsed[0].date);
+  const fimS=fmtISO(parsed[parsed.length-1].date);
+  document.getElementById('cfgIni').value=iniS;
+  document.getElementById('cfgFim').value=fimS;
+  if(metaA){document.getElementById('cfgMetaA').value=metaA;}
+  readConfig();buildRange();
+  parsed.forEach(r=>{
+    const k=fmtISO(r.date);
+    dados[k]={...(dados[k]||{}),op:true,agua:r.agua,gas:r.gas,obs:r.obs};
+  });
+  buildTable();
+  saveToCloud();
+  setUploadStatus(`Importados ${parsed.length} dia(s) da folha "${sn}".`,'ok');
+}
+
+// ===================== RELATÓRIO =====================
+function fmt0(n){return Math.round(n);}
+function fmt1(n){return (Math.round(n*10)/10).toFixed(1);}
+function fmtDateObj(d){return fmtDate(d)+'/'+d.getFullYear();}
+
+function buildBarSVG(data,meta,color,colorFull){
+  const W=960,H=220,pL=40,pR=14,pT=24,pB=44;
+  const pw=W-pL-pR,ph=H-pT-pB,n=data.length;
+  if(!n) return '';
+  const slot=pw/n,bw=Math.min(24,slot*.6);
+  const maxV=Math.max(meta,...data.map(d=>d.v||0),1);
+  const nice=Math.ceil(maxV*1.18);
+  const yS=v=>pT+ph-(v/nice)*ph;
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">`;
+  for(let i=0;i<=5;i++){
+    const v=Math.round((nice/5)*i),y=yS(v);
+    s+=`<line x1="${pL}" y1="${y}" x2="${W-pR}" y2="${y}" stroke="#e7e3d8" stroke-width="0.5"/>`;
+    s+=`<text x="${pL-5}" y="${y+4}" font-size="9" fill="#7d7a72" text-anchor="end">${v}</text>`;
+  }
+  data.forEach((d,i)=>{
+    const cx=pL+i*slot+slot/2,bx=cx-bw/2;
+    if(!d.op){
+      s+=`<rect x="${pL+i*slot}" y="${pT}" width="${slot}" height="${ph}" fill="#f0eeea"/>`;
+      s+=`<text x="${cx}" y="${pT+ph/2}" font-size="8" fill="#bbb" text-anchor="middle" transform="rotate(-90,${cx},${pT+ph/2})">parado</text>`;
+    } else {
+      const bh=(d.v/nice)*ph||0,by=pT+ph-bh;
+      const fill=d.v>=meta?colorFull:color;
+      s+=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="${fill}" rx="1.5"/>`;
+      if(d.v>0) s+=`<text x="${cx}" y="${by-5}" font-size="9" fill="#4b5c6b" text-anchor="middle">${d.v}</text>`;
+    }
+    s+=`<text x="${cx}" y="${H-pB+14}" font-size="8" fill="#7d7a72" text-anchor="middle" transform="rotate(-40,${cx},${H-pB+14})">${fmtDate(d.date)}</text>`;
+  });
+  const yM=yS(meta);
+  s+=`<line x1="${pL}" y1="${yM}" x2="${W-pR}" y2="${yM}" stroke="#b3432f" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+  s+=`<text x="${W-pR}" y="${yM-5}" font-size="9.5" fill="#b3432f" text-anchor="end" font-weight="600">meta ${meta}/dia</text>`;
+  s+=`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+ph}" stroke="#1c2b3a" stroke-width="0.8"/>`;
+  s+=`<line x1="${pL}" y1="${pT+ph}" x2="${W-pR}" y2="${pT+ph}" stroke="#1c2b3a" stroke-width="0.8"/>`;
+  s+=`</svg>`;return s;
+}
+
+function buildClosedSVG(data){
+  const W=960,H=190,pL=40,pR=14,pT=24,pB=44;
+  const pw=W-pL-pR,ph=H-pT-pB,n=data.length;
+  if(!n) return '';
+  const slot=pw/n,bw=Math.min(22,slot*.55);
+  const maxV=Math.max(...data.map(d=>(d.la||0)+(d.lg||0)),1);
+  const nice=Math.ceil(maxV*1.2);
+  const yS=v=>pT+ph-(v/nice)*ph;
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">`;
+  data.forEach((d,i)=>{
+    const cx=pL+i*slot+slot/2,bx=cx-bw/2;
+    let yc=pT+ph;
+    const ha=(d.la/nice)*ph||0,hg=(d.lg/nice)*ph||0;
+    if(d.la>0){yc-=ha;s+=`<rect x="${bx}" y="${yc}" width="${bw}" height="${ha}" fill="#2f5d8a" rx="1"/>`;}
+    if(d.lg>0){yc-=hg;s+=`<rect x="${bx}" y="${yc}" width="${bw}" height="${hg}" fill="#c97b3d" rx="1"/>`;}
+    const tot=(d.la||0)+(d.lg||0);
+    if(tot>0) s+=`<text x="${cx}" y="${yc-4}" font-size="9" fill="#4b5c6b" text-anchor="middle">${tot}</text>`;
+    s+=`<text x="${cx}" y="${H-pB+14}" font-size="8" fill="#7d7a72" text-anchor="middle" transform="rotate(-40,${cx},${H-pB+14})">${fmtDate(d.date)}</text>`;
+  });
+  s+=`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+ph}" stroke="#1c2b3a" stroke-width="0.8"/>`;
+  s+=`<line x1="${pL}" y1="${pT+ph}" x2="${W-pR}" y2="${pT+ph}" stroke="#1c2b3a" stroke-width="0.8"/>`;
+  s+=`<g transform="translate(${pL},6)">
+    <rect x="0" y="0" width="8" height="8" fill="#2f5d8a" rx="1"/>
+    <text x="12" y="8" font-size="9" fill="#4b5c6b">Água</text>
+    <rect x="52" y="0" width="8" height="8" fill="#c97b3d" rx="1"/>
+    <text x="64" y="8" font-size="9" fill="#4b5c6b">Gasóleo</text>
+  </g>`;
+  s+=`</svg>`;return s;
+}
+
+function buildCompareSVG(prevA,realA,prevG,realG){
+  const W=480,H=250,pL=48,pR=18,pT=22,pB=38;
+  const pw=W-pL-pR,ph=H-pT-pB;
+  const maxV=Math.max(prevA,prevG,realA,realG,1)*1.15;
+  const yS=v=>pT+ph-(v/maxV)*ph;
+  const groups=[{l:'Água',p:prevA,r:realA,c:'#2f5d8a'},{l:'Gasóleo',p:prevG,r:realG,c:'#c97b3d'}];
+  const gw=pw/2;const bw=40;
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;max-width:500px;">`;
+  for(let i=0;i<=4;i++){
+    const v=Math.round((maxV/4)*i),y=yS(v);
+    s+=`<line x1="${pL}" y1="${y}" x2="${W-pR}" y2="${y}" stroke="#e7e3d8" stroke-width="0.5"/>`;
+    s+=`<text x="${pL-5}" y="${y+4}" font-size="9" fill="#7d7a72" text-anchor="end">${v}</text>`;
+  }
+  groups.forEach((g,i)=>{
+    const cx=pL+gw*i+gw/2;
+    const xP=cx-bw-3,xR=cx+3;
+    const hP=(g.p/maxV)*ph||0,hR=(g.r/maxV)*ph||0;
+    s+=`<rect x="${xP}" y="${pT+ph-hP}" width="${bw}" height="${hP}" fill="#c7c2b4" rx="1.5"/>`;
+    s+=`<text x="${xP+bw/2}" y="${pT+ph-hP-6}" font-size="10" fill="#4b5c6b" text-anchor="middle">${fmt0(g.p)}</text>`;
+    s+=`<rect x="${xR}" y="${pT+ph-hR}" width="${bw}" height="${hR}" fill="${g.c}" rx="1.5"/>`;
+    s+=`<text x="${xR+bw/2}" y="${pT+ph-hR-6}" font-size="10" fill="${g.c}" text-anchor="middle" font-weight="700">${fmt0(g.r)}</text>`;
+    s+=`<text x="${cx}" y="${H-pB+16}" font-size="11" fill="#1c2b3a" text-anchor="middle" font-weight="600">${g.l}</text>`;
+  });
+  s+=`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+ph}" stroke="#1c2b3a" stroke-width="0.8"/>`;
+  s+=`<line x1="${pL}" y1="${pT+ph}" x2="${W-pR}" y2="${pT+ph}" stroke="#1c2b3a" stroke-width="0.8"/>`;
+  s+=`<g transform="translate(${pL},4)">
+    <rect x="0" y="0" width="10" height="10" fill="#c7c2b4" rx="1"/>
+    <text x="14" y="9" font-size="9" fill="#4b5c6b">Previsto</text>
+    <rect x="72" y="0" width="10" height="10" fill="#888" rx="1"/>
+    <text x="86" y="9" font-size="9" fill="#4b5c6b">Realizado</text>
+  </g>`;
+  s+=`</svg>`;return s;
+}
+
+function buildReport(){
+  readConfig();
+  if(!range.length){ buildRange(); }
+  const metaA=config.metaA,metaG=config.metaG;
+  const diasOp=range.filter(d=>dados[fmtISO(d)]?.op!==false);
+  const nDias=diasOp.length||1;
+  const totalA=diasOp.reduce((s,d)=>s+(Number(dados[fmtISO(d)]?.agua)||0),0);
+  const totalG=diasOp.reduce((s,d)=>s+(Number(dados[fmtISO(d)]?.gas)||0),0);
+  const totalLA=range.reduce((s,d)=>s+(Number(dados[fmtISO(d)]?.la)||0),0);
+  const totalLG=range.reduce((s,d)=>s+(Number(dados[fmtISO(d)]?.lg)||0),0);
+  const totalL=totalLA+totalLG;
+  const prevA=metaA*nDias,prevG=metaG*nDias;
+  const execA=prevA>0?fmt0(totalA/prevA*100):0;
+  const execG=prevG>0?fmt0(totalG/prevG*100):0;
+  const abstA=100-execA,abstG=100-execG;
+  const mediaA=fmt1(totalA/nDias),mediaG=fmt1(totalG/nDias);
+  const faltaA=fmt0(Math.max(0,prevA-totalA)),faltaG=fmt0(Math.max(0,prevG-totalG));
+  const diasMetaA=diasOp.filter(d=>(dados[fmtISO(d)]?.agua||0)>=metaA).length;
+  const diasMetaG=diasOp.filter(d=>(dados[fmtISO(d)]?.gas||0)>=metaG).length;
+  const diasZeroA=diasOp.filter(d=>!(dados[fmtISO(d)]?.agua));
+  const diasZeroG=diasOp.filter(d=>!(dados[fmtISO(d)]?.gas));
+  const diasParados=range.filter(d=>dados[fmtISO(d)]?.op===false).length;
+  const periodoStr=range.length?fmtDateObj(range[0])+' – '+fmtDateObj(range[range.length-1]):'—';
+  const pctC=p=>p>=80?'pct-ok':'pct-bad';
+
+  const barA=range.map(d=>({date:d,v:Number(dados[fmtISO(d)]?.agua)||0,op:dados[fmtISO(d)]?.op!==false}));
+  const barG=range.map(d=>({date:d,v:Number(dados[fmtISO(d)]?.gas)||0,op:dados[fmtISO(d)]?.op!==false}));
+  const barL=range.map(d=>({date:d,la:Number(dados[fmtISO(d)]?.la)||0,lg:Number(dados[fmtISO(d)]?.lg)||0}));
+
+  const points=[];
+  const piorItem=execA<=execG?'água':'gasóleo';
+  points.push(`<li><b>${piorItem==='água'?'Défice mais acentuado na água.':'Défice mais acentuado no gasóleo.'}</b> ${piorItem==='água'?`Com ${execA}% da meta cumprida, faltaram ${faltaA} viaturas de água nos ${nDias} dias úteis.`:`Com ${execG}% da meta cumprida, faltaram ${faltaG} viaturas de gasóleo nos ${nDias} dias úteis.`}</li>`);
+  points.push(`<li><b>Água.</b> Execução de ${execA}% (abstinência de ${abstA}%). Meta atingida em ${diasMetaA} de ${nDias} dias${diasZeroA.length?`; sem abastecimento em ${diasZeroA.length} dia(s) (${diasZeroA.map(d=>fmtDate(d)).join(', ')}).`:'.'}` );
+  points.push(`<li><b>Gasóleo.</b> Execução de ${execG}% (abstinência de ${abstG}%). Meta atingida em ${diasMetaG} de ${nDias} dias${diasZeroG.length?`; sem abastecimento em ${diasZeroG.length} dia(s) (${diasZeroG.map(d=>fmtDate(d)).join(', ')}).`:'.'}` );
+  if(totalL>0) points.push(`<li><b>Impacto em lojas.</b> ${totalL} fecho(s) registados por falta de abastecimento — ${totalLA} por água e ${totalLG} por gasóleo.</li>`);
+  const obsList=range.filter(d=>dados[fmtISO(d)]?.obs);
+  if(obsList.length) points.push(`<li><b>Observações.</b> ${obsList.map(d=>`${fmtDate(d)}: ${dados[fmtISO(d)].obs}`).join(' · ')}</li>`);
+  points.push(`<li><b>A confirmar.</b> Validar se as metas (${metaA}/dia água, ${metaG}/dia gasóleo) refletem necessidade real ou capacidade teórica.</li>`);
+
+  const statCards=(items)=>items.map(s=>`<div class="stat-card ${s.cls||''}"><div class="num">${s.val}</div><div class="lbl">${s.lbl}</div></div>`).join('');
+
+  document.getElementById('reportDoc').innerHTML = `
+    <div class="report-head">
+      <h1>${esc(config.titulo)}</h1>
+      <div class="meta">
+        Período ${periodoStr} · Meta: ${metaA} viat./dia (água) · ${metaG} viat./dia (gasóleo)<br>
+        Análise de execução vs. previsto${diasParados>0?' · '+diasParados+' dia(s) sem operação':' · todos os dias com operação'}
+        ${config.sub?'<br>'+esc(config.sub):''}
+      </div>
+    </div>
+
+    <div class="callout info">
+      <b>Leitura geral.</b> No período de ${nDias} dias com operação, a <b class="w">água</b> registou ${totalA} viaturas face às ${prevA} previstas
+      (<b>${execA}%</b> de execução, ${abstA}% de abstinência). O <b class="f">gasóleo</b> registou ${totalG} viaturas face às ${prevG} previstas
+      (${execG}% de execução, ${abstG}% de abstinência).
+      ${execA<execG?'A água é o principal ponto de défice.':execG<execA?'O gasóleo é o principal ponto de défice.':'Ambos apresentam níveis de execução semelhantes.'}
+    </div>
+
+    ${totalL>0?`<div class="callout impact"><b>Impacto operacional.</b> O défice resultou em <b>${totalL} fecho(s) de loja</b>: ${totalLA} por falta de água e ${totalLG} por falta de gasóleo.</div>`:''}
+
+    <div class="stat-grid">
+      ${statCards([
+        {val:execA+'%',lbl:'Execução água<br>('+abstA+'% abstinência)',cls:'water'},
+        {val:execG+'%',lbl:'Execução gasóleo<br>('+abstG+'% abstinência)',cls:'fuel'},
+        {val:mediaA+' / '+metaA,lbl:'Média água por dia útil',cls:'water'},
+        {val:mediaG+' / '+metaG,lbl:'Média gasóleo por dia útil',cls:'fuel'},
+      ])}
+    </div>
+
+    ${totalL>0?`<div class="stat-grid" style="grid-template-columns:repeat(3,1fr);">
+      ${statCards([
+        {val:totalL,lbl:'Total fechos de loja',cls:'impact'},
+        {val:totalLA,lbl:'Por falta de água',cls:'impact'},
+        {val:totalLG,lbl:'Por falta de gasóleo',cls:'impact'},
+      ])}
+    </div>`:''}
+
+    <div class="chart-block">
+      <h2 class="section-title">Abastecimento diário de água vs. previsto (${metaA}/dia)</h2>
+      <p class="section-sub">Azul escuro = meta atingida. Faixas claras = dias sem operação. Linha tracejada = meta.</p>
+      ${buildBarSVG(barA,metaA,'#2f5d8a','#1d3c5c')}
+    </div>
+
+    <div class="chart-block">
+      <h2 class="section-title">Abastecimento diário de gasóleo vs. previsto (${metaG}/dia)</h2>
+      <p class="section-sub">Laranja escuro = meta atingida. Faixas claras = dias sem operação. Linha tracejada = meta.</p>
+      ${buildBarSVG(barG,metaG,'#c97b3d','#9c5a23')}
+    </div>
+
+    ${totalL>0?`<div class="chart-block">
+      <h2 class="section-title">Lojas fechadas por falta de abastecimento</h2>
+      <p class="section-sub">Barras empilhadas: azul = água, laranja = gasóleo.</p>
+      ${buildClosedSVG(barL)}
+    </div>`:''}
+
+    <div class="chart-block">
+      <h2 class="section-title">Previsto vs. realizado no período</h2>
+      <p class="section-sub">Cinzento = previsto · Cor = realizado.</p>
+      ${buildCompareSVG(prevA,totalA,prevG,totalG)}
+    </div>
+
+    <h2 class="section-title">Resumo do período</h2>
+    <table class="summary">
+      <thead><tr><th></th><th>Realizado</th><th>Previsto</th><th>Média/dia</th><th>Meta/dia</th><th>Execução</th><th>Abstinência</th></tr></thead>
+      <tbody>
+        <tr><td>Água</td><td>${totalA}</td><td>${prevA}</td><td>${mediaA}</td><td>${metaA}</td><td class="${pctC(execA)}">${execA}%</td><td>${abstA}%</td></tr>
+        <tr><td>Gasóleo</td><td>${totalG}</td><td>${prevG}</td><td>${mediaG}</td><td>${metaG}</td><td class="${pctC(execG)}">${execG}%</td><td>${abstG}%</td></tr>
+        <tr><td>Total</td><td>${totalA+totalG}</td><td>${prevA+prevG}</td><td>${fmt1((totalA+totalG)/nDias)}</td><td>${metaA+metaG}</td>
+          <td>${fmt0((totalA+totalG)/(prevA+prevG||1)*100)}%</td><td>${fmt0(100-(totalA+totalG)/(prevA+prevG||1)*100)}%</td></tr>
+        ${totalL>0?`<tr><td>Lojas fech. (água)</td><td colspan="6">${totalLA} fecho(s)</td></tr>
+        <tr><td>Lojas fech. (gasóleo)</td><td colspan="6">${totalLG} fecho(s)</td></tr>`:''}
+      </tbody>
+    </table>
+    <p class="section-sub">Médias calculadas sobre ${nDias} dias com operação${diasParados>0?` (${diasParados} dia(s) excluídos)`:''}.</p>
+
+    <h2 class="section-title">Leitura e pontos de atenção</h2>
+    <ul class="points">${points.join('')}</ul>
+
+    <div class="footer-note">Relatório gerado automaticamente · ${periodoStr} · Última sincronização: ${new Date().toLocaleString('pt-PT')}</div>
+  `;
+}
+
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+// ===================== INIT =====================
+window.addEventListener('DOMContentLoaded',async()=>{
+  setSyncState('loading','A ligar à nuvem...');
+  await loadFromCloud();
+  if(range.length) buildTable();
+  startPolling();
+});
+</script>
+</body>
+</html>
